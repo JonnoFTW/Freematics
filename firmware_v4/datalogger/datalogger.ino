@@ -83,7 +83,7 @@ public:
 #endif
 
         SerialRF.print("0,OBD,");
-        if (init()) {
+        if (init(PROTO_CAN_11B_500K)) {
           state |= STATE_OBD_READY;
           SerialRF.println("OK");
         } else {
@@ -197,7 +197,7 @@ public:
     void reconnect()
     {
         SerialRF.println("Reconnecting");
-        if (init()) {
+        if (init(PROTO_CAN_11B_500K)) {
           // reconnected
           return; 
         }
@@ -304,7 +304,7 @@ void loop()
         }
     } else {
       if (!OBD_ATTEMPT_TIME || millis() < OBD_ATTEMPT_TIME * 1000) {
-        if (one.init()) {
+        if (one.init(PROTO_CAN_11B_500K)) {
             one.state |= STATE_OBD_READY;
         }
       } else {
