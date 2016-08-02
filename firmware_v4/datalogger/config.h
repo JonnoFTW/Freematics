@@ -14,7 +14,7 @@
 #define ENABLE_DATA_CACHE 0
 #define MAX_CACHE_SIZE 256  /* bytes */
 
-#define USE_FRIENDLY_PID_NAME 1
+#define USE_FRIENDLY_PID_NAME 0
 
 // followings define the format of data streaming, enable one of them only
 // FORMAT_BIN is required by Freematics OBD iOS App
@@ -26,7 +26,7 @@
 #define STREAM_BAUDRATE 115200
 
 // maximum size per file, a new file will be created on reaching this size
-#define MAX_LOG_FILE_SIZE 1024 /* KB */
+#define MAX_LOG_FILE_SIZE 2048 /* KB */
 
 // outputs more debug information
 #define VERBOSE 0
@@ -45,7 +45,7 @@
 #define SD_CS_PIN 10
 
 // enable(1)/disable(0) MEMS sensor
-#define USE_MPU6050 1
+#define USE_MPU6050 0
 #define ACC_DATA_RATIO 160
 #define GYRO_DATA_RATIO 256
 #define COMPASS_DATA_RATIO 8

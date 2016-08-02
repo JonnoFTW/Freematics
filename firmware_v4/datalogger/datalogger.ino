@@ -61,7 +61,7 @@ public:
         SerialRF.println(version);
 
 #if ENABLE_DATA_LOG
-        SerialRF.print("SD ");
+        SerialRF.print("0,SD,");
         uint16_t volsize = initSD();
         if (volsize) {
           SerialRF.print(volsize);
@@ -72,7 +72,7 @@ public:
 #endif
 
 #if USE_MPU6050
-        SerialRF.print("MEMS ");
+        SerialRF.print("0,MEMS,");
         Wire.begin();
         if (memsInit()) {
           state |= STATE_MEMS_READY;
@@ -82,7 +82,7 @@ public:
         }
 #endif
 
-        SerialRF.print("OBD ");
+        SerialRF.print("0,OBD,");
         if (init()) {
           state |= STATE_OBD_READY;
           SerialRF.println("OK");
@@ -92,7 +92,7 @@ public:
 
 #if USE_GPS
         delay(100);
-        SerialRF.print("GPS ");
+        SerialRF.print("0,GPS,");
         if (initGPS(GPS_SERIAL_BAUDRATE)) {
           state |= STATE_GPS_FOUND;
           SerialRF.println("OK");
@@ -274,7 +274,8 @@ void loop()
 #endif
     if (one.state & STATE_OBD_READY) {
         static byte index2 = 0;
-        const byte pids[]= {PID_RPM, PID_SPEED, PID_THROTTLE, PID_ENGINE_LOAD};
+        // from OBD.h
+        const byte pids[]= {PID_ENGINE_LOAD, PID_INTAKE_MAP, PID_RPM, PID_SPEED, PID_MAF_FLOW, PID_THROTTLE};
         int values[sizeof(pids)];
         // read multiple OBD-II PIDs
         if (one.read(pids, sizeof(pids), values) == sizeof(pids)) {
@@ -282,9 +283,10 @@ void loop()
           for (byte n = 0; n < sizeof(pids); n++) {
             one.logData((uint16_t)pids[n] | 0x100, values[n]);
           }
+//          delay(30);
         }
         static byte lastSec = 0;
-        const byte pids2[] = {PID_COOLANT_TEMP, PID_INTAKE_TEMP, PID_DISTANCE};
+        const byte pids2[] = {PID_COOLANT_TEMP, PID_ENGINE_FUEL_RATE, PID_DISTANCE};
         byte sec = (uint8_t)(millis() >> 10);
         if (sec != lastSec) {
           // goes in every other second
