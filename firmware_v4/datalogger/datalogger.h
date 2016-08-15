@@ -35,7 +35,7 @@
 #if ENABLE_DATA_LOG
 static File sdfile;
 #endif
-
+/*
 typedef struct {
     uint8_t pid;
     char name[3];
@@ -46,7 +46,7 @@ const PID_NAME pidNames[] PROGMEM = {
 {PID_GYRO, {'G','Y','R'}},
 {PID_COMPASS, {'M','A','G'}},
 {PID_GPS_LATITUDE, {'L','A','T'}},
-{PID_GPS_LONGITUDE, {'L','N','G'}}, 
+{PID_GPS_LONGITUDE, {'L','N','G'}},
 {PID_GPS_ALTITUDE, {'A','L','T'}},
 {PID_GPS_SPEED, {'S','P','D'}},
 {PID_GPS_HEADING, {'C','R','S'}},
@@ -65,7 +65,7 @@ const PID_NAME pidNames[] PROGMEM = {
 {PID_MAF_FLOW, {'M','A','F'}},
 {PID_THROTTLE, {'T','H','R'}}
 };
-
+*/
 
 // {PID_COOLANT_TEMP, PID_ENGINE_FUEL_RATE, PID_DISTANCE};
 //  {PID_ENGINE_LOAD, PID_INTAKE_MAP, PID_RPM, PID_SPEED, PID_MAF_FLOW, PID_THROTTLE};
@@ -110,6 +110,7 @@ public:
 #if ENABLE_DATA_OUT
         SerialRF.write(tmp, n);
         SerialRF.write(buf, len);
+        SerialRF.write('!');
         SerialRF.println();
 #endif
     }

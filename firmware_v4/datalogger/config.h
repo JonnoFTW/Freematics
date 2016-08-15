@@ -38,6 +38,19 @@
 // max allowed time for connecting OBD-II (0 for forever)
 #define OBD_ATTEMPT_TIME 0 /* seconds */
 
+#define OBD_PROTOCOL PROTO_AUTO
+
+// should be one of:
+/*  PROTO_AUTO = 0,
+    PROTO_ISO_9141_2 = 3,
+    PROTO_KWP2000_5KBPS = 4,
+    PROTO_KWP2000_FAST = 5,
+    PROTO_CAN_11B_500K = 6,
+    PROTO_CAN_29B_500K = 7,
+    PROTO_CAN_29B_250K = 8,
+    PROTO_CAN_11B_250K = 9,
+ */
+
 // OBD-II UART baudrate
 #define OBD_UART_BAUDRATE 115200L
 
