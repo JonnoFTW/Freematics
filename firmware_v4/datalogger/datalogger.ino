@@ -322,8 +322,9 @@ void loop()
 //      if(values[n] != errCode)
         one.logData(pids[n] | 0x100U, values[n]);
     }
-    delay(30);
     SerialRF.flush();
+    delay(30);
+    
     
     
     //        static byte lastSec = 0;
