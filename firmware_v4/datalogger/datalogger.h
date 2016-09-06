@@ -35,40 +35,7 @@
 #if ENABLE_DATA_LOG
 static File sdfile;
 #endif
-/*
-typedef struct {
-    uint8_t pid;
-    char name[3];
-} PID_NAME;
 
-const PID_NAME pidNames[] PROGMEM = {
-{PID_ACC, {'A','C','C'}},
-{PID_GYRO, {'G','Y','R'}},
-{PID_COMPASS, {'M','A','G'}},
-{PID_GPS_LATITUDE, {'L','A','T'}},
-{PID_GPS_LONGITUDE, {'L','N','G'}},
-{PID_GPS_ALTITUDE, {'A','L','T'}},
-{PID_GPS_SPEED, {'S','P','D'}},
-{PID_GPS_HEADING, {'C','R','S'}},
-{PID_GPS_SAT_COUNT, {'S','A','T'}},
-{PID_GPS_TIME, {'U','T','C'}},
-{PID_GPS_DATE, {'D','T','E'}},
-{PID_BATTERY_VOLTAGE, {'B','A','T'}},
-{PID_DATA_SIZE, {'D','A','T'}},
-{PID_COOLANT_TEMP, {'C','T','P'}},
-{PID_ENGINE_FUEL_RATE, {'F','R','T'}},
-{PID_DISTANCE, {'D','S','T'}},
-{PID_ENGINE_LOAD, {'E','L','D'}},
-{PID_INTAKE_MAP, {'M','A','P'}},
-{PID_RPM, {'R','P','M'}},
-{PID_SPEED, {'E','S','P'}},
-{PID_MAF_FLOW, {'M','A','F'}},
-{PID_THROTTLE, {'T','H','R'}}
-};
-*/
-
-// {PID_COOLANT_TEMP, PID_ENGINE_FUEL_RATE, PID_DISTANCE};
-//  {PID_ENGINE_LOAD, PID_INTAKE_MAP, PID_RPM, PID_SPEED, PID_MAF_FLOW, PID_THROTTLE};
 class CDataLogger {
 public:
     CDataLogger():m_lastDataTime(0),dataTime(0),dataSize(0)
@@ -111,12 +78,18 @@ public:
         SerialRF.write(tmp, n);
         SerialRF.write(buf, len);
         SerialRF.write('!');
+
+        
         SerialRF.println();
+//        SerialRF.print("Written ");
+//        SerialRF.print(dataSize);
+//        SerialRF.println(" bytes");
 #endif
     }
     void dispatch(const char* buf, byte len)
     {
       return;
+      /*
 #if ENABLE_DATA_CACHE
         if (cacheBytes + len < MAX_CACHE_SIZE - 10) {
           cacheBytes += genTimestamp(cache + cacheBytes, cacheBytes == 0);
@@ -127,13 +100,13 @@ public:
         }
 #else
         char tmp[12];
-        byte n = genTimestamp(tmp, dataTime >= m_lastDataTime + 30);
+        byte n = genTimestamp(tmp, dataTime >= m_lastDataTime + 20);
         SerialRF.write(tmp, n);
 #endif
 #if ENABLE_DATA_OUT
         SerialRF.write(buf, len);
         SerialRF.println();
-#endif
+#endif*/
     }
     void logData(const char* buf, byte len)
     {
@@ -215,11 +188,18 @@ public:
             fileIndex = 1;
             sprintf(path + 5, "/DAT%05u.CSV", 1);
         }
-
+        
         sdfile = SD.open(path, FILE_WRITE);
         if (!sdfile) {
+//          SerialRF.print("Could not open file!");
+//         SerialRF.write(path, 19);
+//        SerialRF.println();
+        
             return 0;
         }
+//        SerialRF.print("Opened ");
+//        SerialRF.write(path, 19);
+//        SerialRF.println();
         return fileIndex;
     }
     void closeFile()

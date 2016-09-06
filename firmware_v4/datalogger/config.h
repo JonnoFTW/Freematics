@@ -26,7 +26,7 @@
 #define STREAM_BAUDRATE 115200
 
 // maximum size per file, a new file will be created on reaching this size
-#define MAX_LOG_FILE_SIZE 2048 /* KB */
+#define MAX_LOG_FILE_SIZE 1024 /* KB */
 
 // outputs more debug information
 #define VERBOSE 0

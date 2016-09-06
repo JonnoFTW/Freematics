@@ -12,7 +12,7 @@
   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
   THE SOFTWARE.
 *************************************************************************/
-
+//#include <MemoryFree.h>
 #include <Arduino.h>
 #include <Wire.h>
 #include <SPI.h>
@@ -141,9 +141,10 @@ class ONE : public COBDSPI, public CDataLogger
         dataTime = millis();
         if (gd.time && gd.time != UTC) {
           byte day = gd.date / 10000;
-          if (MMDD % 100 != day) {
-            logData(PID_GPS_DATE, gd.date);
-          }
+          /*if (MMDD % 100 != day) {
+           
+          }*/
+          logData(PID_GPS_DATE, gd.date);
           logData(PID_GPS_TIME, gd.time);
           logData(PID_GPS_LATITUDE, gd.lat);
           logData(PID_GPS_LONGITUDE, gd.lng);
@@ -186,6 +187,11 @@ class ONE : public COBDSPI, public CDataLogger
       }
       if (SD.begin(SD_CS_PIN)) {
         state |= STATE_SD_READY;
+        File file = SD.open("/test.log", FILE_WRITE);
+        if(file) {
+          file.println("hello!");
+          file.close();
+        }
         return volumesize;
       } else {
         return 0;
@@ -249,6 +255,7 @@ class ONE : public COBDSPI, public CDataLogger
     byte state;
 };
 
+
 static ONE one;
 
 void setup()
@@ -264,32 +271,39 @@ void loop()
 {
 #if ENABLE_DATA_LOG
   if (!(one.state & STATE_FILE_READY) && (one.state & STATE_SD_READY)) {
-    if (one.state & STATE_GPS_FOUND) {
+  /*  if (one.state & STATE_GPS_FOUND) {
       // GPS connected
       if (one.state & STATE_GPS_READY) {
-        uint32_t dateTime = (uint32_t)MMDD * 10000 + UTC / 10000;
-        if (one.openFile(dateTime) != 0) {
+        SerialRF.println("attempting to open file GPS");
+     //   uint32_t dateTime = (uint32_t)MMDD * 10000 + UTC / 10000;
+        
+        int index = one.openFile((uint32_t)0);
+        if (index != 0) {
           SerialRF.print("FILE,");
-          SerialRF.println(dateTime);
+          SerialRF.println(index);
           MMDD = 0;
           one.state |= STATE_FILE_READY;
         } else {
           SerialRF.println("File error");
         }
+      } else {
       }
-    } else {
-      // no GPS connected
-      int index = one.openFile(0);
-      if (one.openFile(0) != 0) {
+      // GPS FOUND BUT NOT READY
+    } else  {
+    */
+      int index = one.openFile((uint32_t)0);
+      SerialRF.flush();
+      if (index != 0) {
         one.state |= STATE_FILE_READY;
-        SerialRF.print("0,FILE,");
+        SerialRF.print(millis());
+        SerialRF.print(",FILE,");
         SerialRF.print(index);
         SerialRF.println("!");
       } else {
         SerialRF.println("File error!");
       }
-    }
   }
+  
 #endif
   if (one.state & STATE_OBD_READY) {
     if(VIN_LOGGED < 5) {
@@ -302,13 +316,15 @@ void loop()
           VIN_LOGGED = 10;
         } else {
           VIN_LOGGED++;
+          if(VIN_LOGGED==5) {
+            one.logData("VIN,0", 5);
+          }
         }
-        
     }
-    static byte index2 = 0;
+    
     // from OBD.h
-    const byte pids[8] = {PID_ENGINE_LOAD, PID_THROTTLE, PID_INTAKE_TEMP, PID_ENGINE_FUEL_RATE,
-                            PID_INTAKE_MAP,  PID_RPM,      PID_SPEED,       PID_MAF_FLOW };
+    const byte pids[9] = {PID_ENGINE_LOAD, PID_THROTTLE, PID_INTAKE_TEMP, PID_ENGINE_FUEL_RATE,
+                            PID_INTAKE_MAP,  PID_RPM, PID_SPEED, PID_MAF_FLOW, PID_HYBRID_BATTERY_PERCENTAGE };
     const int errCode = -255;
 //    static int pidsIndex = 0;
     int values[sizeof pids];
@@ -322,11 +338,7 @@ void loop()
 //      if(values[n] != errCode)
         one.logData(pids[n] | 0x100U, values[n]);
     }
-    SerialRF.flush();
-    delay(30);
-    
-    
-    
+     //       static byte index2 = 0;
     //        static byte lastSec = 0;
     //        const byte pids2[] = {PID_COOLANT_TEMP, PID_ENGINE_FUEL_RATE, PID_DISTANCE};
     //        byte sec = (uint8_t)(millis() >> 10);
@@ -353,8 +365,10 @@ void loop()
       }/* else {
         
       }*/
-    
-  }
+   }
+  
+//  Serial.print("freeMemory=");
+//  Serial.println(freeMemory());
   
 #if USE_MPU6050
   if (one.state & STATE_MEMS_READY) {
@@ -371,4 +385,9 @@ void loop()
 #if ENABLE_DATA_LOG
   one.flushData();
 #endif
+
+ SerialRF.flush();
+ 
+// delay(30);
+    
 }
