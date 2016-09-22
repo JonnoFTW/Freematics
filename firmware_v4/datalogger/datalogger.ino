@@ -19,7 +19,8 @@
 #include <FreematicsONE.h>
 #include "config.h"
 #if ENABLE_DATA_LOG
-#include <SD.h>
+//#include <SD.h>
+#include "SdFat.h"
 #endif
 #include "datalogger.h"
 
@@ -41,17 +42,18 @@
 static uint8_t lastFileSize = 0;
 static uint16_t fileIndex = 0;
 static unsigned long GPS_LAST_TIME = 0;
-static int VIN_LOGGED = 0;
+static byte VIN_LOGGED = 0;
+static bool PIDS_SUPPORTED_LOGGED = 0;
 
-uint16_t MMDD = 0;
+//uint16_t MMDD = 0;
 uint32_t UTC = 0;
 
 #if USE_MPU6050
 MEMS_DATA mems;
 #endif
-
 class ONE : public COBDSPI, public CDataLogger
 {
+  
   public:
     ONE(): state(0) {}
     void setup()
@@ -59,18 +61,19 @@ class ONE : public COBDSPI, public CDataLogger
       state = 0;
 
       begin();
-      SerialRF.print("Firmware Version ");
+      SerialRF.print(F("Firmware Version "));
       SerialRF.println(version);
 
 #if ENABLE_DATA_LOG
+      SerialRF.print('#');
       SerialRF.print(millis());
       SerialRF.print(",SD,");
       uint16_t volsize = initSD();
       if (volsize) {
         SerialRF.print(volsize);
-        SerialRF.println("MB!");
+        SerialRF.println(F("MB!"));
       } else {
-        SerialRF.println("NO!");
+        SerialRF.println(F("NO!"));
       }
 #endif
 
@@ -87,7 +90,40 @@ class ONE : public COBDSPI, public CDataLogger
 #endif
 
       connectOBD();
-
+      if(PIDS_SUPPORTED_LOGGED == 0) {
+          if((state & STATE_OBD_READY) && (state & STATE_SD_READY)) {
+              File file = SD.open("/pids.log", FILE_WRITE);
+              if(file) {
+                uint32_t supported;
+                char pidb[8];
+                int pid =0x00;
+                for(;pid <= PID_SUPPORT_C; pid+=0x20) {
+                  // read the pid
+                  
+                  getSupportByte(pid, supported);
+                  sprintf(pidb, "0x%d%02X,", dataMode, pid);
+                  file.print(pidb);
+                  file.println(supported, BIN);
+//                  logSupport(pid, supported, file);
+                }
+                pid = 0;
+                dataMode = 9;
+                getSupportByte(pid, supported);
+                sprintf(pidb, "0x%d%02X,", dataMode, pid);
+                file.print(pidb);
+                file.println(supported, BIN);
+                dataMode = 1;
+                file.println("---------");
+                file.close();
+                PIDS_SUPPORTED_LOGGED = 1;
+                SerialRF.println(F("Logged PIDs"));
+              } else {
+                SerialRF.println(F("Couldn't open pid file!"));
+              }
+          } else {
+            SerialRF.println(F("OBD or sd not ready!"));
+          }
+      }
 
 #if USE_GPS
       connectGPS();
@@ -96,14 +132,15 @@ class ONE : public COBDSPI, public CDataLogger
       delay(1000);
     }
     bool connectOBD() {
+      SerialRF.print('#');
       SerialRF.print(millis());
-      SerialRF.print(",OBD,");
+      SerialRF.print(F(",OBD,"));
       if (init(OBD_PROTOCOL)) {
         state |= STATE_OBD_READY;
-        SerialRF.println("OK!");
+        SerialRF.println(F("OK!"));
         return 1;
       } else {
-        SerialRF.println("NO!");
+        SerialRF.println(F("NO!"));
         return 0;
       }
     }
@@ -111,13 +148,14 @@ class ONE : public COBDSPI, public CDataLogger
       if (!GPS_LAST_TIME || millis() > GPS_LAST_TIME + 10000) {
         delay(100);
         GPS_LAST_TIME = millis();
+        SerialRF.print('#');
         SerialRF.print(GPS_LAST_TIME);
-        SerialRF.print(",GPS,");
+        SerialRF.print(F(",GPS,"));
         if (initGPS(GPS_SERIAL_BAUDRATE)) {
           state |= STATE_GPS_FOUND;
-          SerialRF.println("OK!");
+          SerialRF.println(F("OK!"));
         } else {
-          SerialRF.println("NO!");
+          SerialRF.println(F("NO!"));
         }
       }
     }
@@ -140,21 +178,22 @@ class ONE : public COBDSPI, public CDataLogger
       if (getGPSData(&gd)) {
         dataTime = millis();
         if (gd.time && gd.time != UTC) {
-          byte day = gd.date / 10000;
+//          byte day = gd.date / 10000;
           /*if (MMDD % 100 != day) {
            
           }*/
-          logData(PID_GPS_DATE, gd.date);
-          logData(PID_GPS_TIME, gd.time);
+          logDateTime(gd.date, gd.time);
+        //  logData(PID_GPS_DATE, gd.date);
+       //   logData(PID_GPS_TIME, gd.time);
           logData(PID_GPS_LATITUDE, gd.lat);
           logData(PID_GPS_LONGITUDE, gd.lng);
           logData(PID_GPS_ALTITUDE, gd.alt);
           logData(PID_GPS_SPEED, gd.speed);
           logData(PID_GPS_SAT_COUNT, gd.sat);
           // save current date in MMDD format
-          unsigned int DDMM = gd.date / 100;
-          UTC = gd.time;
-          MMDD = (DDMM % 100) * 100 + (DDMM / 100);
+//          unsigned int DDMM = gd.date / 100;
+//          UTC = gd.time;
+//          MMDD = (DDMM % 100) * 100 + (DDMM / 100);
           // set GPS ready flag
           state |= STATE_GPS_READY;
         }
@@ -174,29 +213,39 @@ class ONE : public COBDSPI, public CDataLogger
     {
       state &= ~STATE_SD_READY;
       pinMode(SS, OUTPUT);
-      Sd2Card card;
-      uint32_t volumesize = 0;
-      if (card.init(SPI_HALF_SPEED, SD_CS_PIN)) {
-        SdVolume volume;
-        if (volume.init(card)) {
-          volumesize = volume.blocksPerCluster();
-          volumesize >>= 1; // 512 bytes per block
-          volumesize *= volume.clusterCount();
-          volumesize /= 1000;
+      if(!SD.begin(SD_CS_PIN)) {
+        SerialRF.println(F("Could not start SD Card"));
+        if(SD.card()->errorCode()) {
+          SerialRF.print("SD errorCode: ");
+          SerialRF.println(SD.card()->errorCode());
+          SerialRF.print("SD errorData: ");
+          SerialRF.println(SD.card()->errorData());
+        
         }
-      }
-      if (SD.begin(SD_CS_PIN)) {
-        state |= STATE_SD_READY;
-        File file = SD.open("/test.log", FILE_WRITE);
-        if(file) {
-          file.println("hello!");
-          file.close();
-        }
-        return volumesize;
-      } else {
         return 0;
+      } else {
+        state |= STATE_SD_READY;
+        return SD.card()->cardSize();
       }
+//      Sd2Card card;
+//      uint32_t volumesize = 0;
+//      if (card.init(SPI_HALF_SPEED, SD_CS_PIN)) {
+//        SdVolume volume;
+//        if (volume.init(card)) {
+//          volumesize = volume.blocksPerCluster();
+//          volumesize >>= 1; // 512 bytes per block
+//          volumesize *= volume.clusterCount();
+//          volumesize /= 1000;
+//        }
+//      }
+//      if (SD.begin(SD_CS_PIN)) {
+//        state |= STATE_SD_READY;
+//        return volumesize;
+//      } else {
+//        return 0;
+//      }
     }
+    
     void flushData()
     {
       // flush SD data every 1KB
@@ -205,7 +254,7 @@ class ONE : public COBDSPI, public CDataLogger
 #if VERBOSE
         // display logged data size
         SerialInfo.print(dataSize);
-        SerialInfo.println(" bytes");
+        SerialInfo.println(F(" bytes"));
 #endif
         flushFile();
         lastFileSize = dataSizeKB;
@@ -220,15 +269,17 @@ class ONE : public COBDSPI, public CDataLogger
 #endif
     void reconnect()
     {
-      SerialRF.println("Reconnecting");
+      flushData();
+      SerialRF.println(F("Reconnecting"));
       if (init()) {
         // reconnected
         return;
       }
-      SerialRF.println("Sleeping");
-#if ENABLE_DATA_LOG
+      #if ENABLE_DATA_LOG
       closeFile();
-#endif
+      #endif
+      SerialRF.println(F("Sleeping"));
+
       state &= ~(STATE_OBD_READY | STATE_GPS_READY | STATE_GPS_FOUND);
       // cut off GPS power
       initGPS(0);
@@ -258,69 +309,42 @@ class ONE : public COBDSPI, public CDataLogger
 
 static ONE one;
 
-void setup()
-{
+void setup() {
 #if VERBOSE
   SerialInfo.begin(STREAM_BAUDRATE);
 #endif
   one.initSender();
-  one.setup();
-
+  one.setup();  
 }
-void loop()
-{
+
+void loop() {
 #if ENABLE_DATA_LOG
   if (!(one.state & STATE_FILE_READY) && (one.state & STATE_SD_READY)) {
-  /*  if (one.state & STATE_GPS_FOUND) {
-      // GPS connected
-      if (one.state & STATE_GPS_READY) {
-        SerialRF.println("attempting to open file GPS");
-     //   uint32_t dateTime = (uint32_t)MMDD * 10000 + UTC / 10000;
-        
-        int index = one.openFile((uint32_t)0);
-        if (index != 0) {
-          SerialRF.print("FILE,");
-          SerialRF.println(index);
-          MMDD = 0;
-          one.state |= STATE_FILE_READY;
-        } else {
-          SerialRF.println("File error");
-        }
-      } else {
-      }
-      // GPS FOUND BUT NOT READY
-    } else  {
-    */
-      int index = one.openFile((uint32_t)0);
-      SerialRF.flush();
+      int index = one.openFile(0);
       if (index != 0) {
         one.state |= STATE_FILE_READY;
+        SerialRF.print(F("#"));
         SerialRF.print(millis());
-        SerialRF.print(",FILE,");
+        SerialRF.print(F(",FILE,"));
         SerialRF.print(index);
-        SerialRF.println("!");
-      } else {
-        SerialRF.println("File error!");
-      }
+        SerialRF.println(F("!"));
+      } 
   }
-  
 #endif
-  if (one.state & STATE_OBD_READY) {
-    if(VIN_LOGGED < 5) {
-        int vin_bytes = 96;
-        char vin[vin_bytes];
-        if(one.getVIN(vin, sizeof(vin))) {
-          char buff [vin_bytes+4];
-          int bytes = sprintf(buff, "VIN,%s", vin);
-          one.logData(buff, bytes);
-          VIN_LOGGED = 10;
-        } else {
-          VIN_LOGGED++;
-          if(VIN_LOGGED==5) {
-            one.logData("VIN,0", 5);
-          }
-        }
-    }
+  if ((one.state & STATE_OBD_READY) ) {
+//    if((VIN_LOGGED ==0) && (one.state & STATE_FILE_READY)) {
+//        int vin_bytes = 96;
+//        char vin[vin_bytes];
+//        if(one.getVIN(vin, sizeof(vin))) {
+//          char buff [vin_bytes+4];
+//          int bytes = sprintf(buff, "VIN,%s", vin);
+//          one.logData(buff, bytes);
+//        } else {
+//          one.logData("VIN,0", 5);
+//        }
+//        VIN_LOGGED = 1;
+//    }
+    
     
     // from OBD.h
     const byte pids[9] = {PID_ENGINE_LOAD, PID_THROTTLE, PID_INTAKE_TEMP, PID_ENGINE_FUEL_RATE,
@@ -338,21 +362,7 @@ void loop()
 //      if(values[n] != errCode)
         one.logData(pids[n] | 0x100U, values[n]);
     }
-     //       static byte index2 = 0;
-    //        static byte lastSec = 0;
-    //        const byte pids2[] = {PID_COOLANT_TEMP, PID_ENGINE_FUEL_RATE, PID_DISTANCE};
-    //        byte sec = (uint8_t)(millis() >> 10);
-    //        if (sec != lastSec) {
-    //          // goes in every other second
-    //          int value;
-    //          byte pid = pids2[index2 = (index2 + 1) % (sizeof(pids2))];
-    //          // read single OBD-II PID
-    //          if (one.isValidPID(pid) && one.read(pid, value)) {
-    //            one.dataTime = millis();
-    //            one.logData((uint16_t)pid | 0x100, value);
-    //            lastSec = sec;
-    //          }
-    //        }
+    
     if (one.errors >= 10) {
       one.reconnect();  
     }
@@ -362,13 +372,8 @@ void loop()
            // one.state |= STATE_OBD_READY;
             one.dataIdleLoop();
         }
-      }/* else {
-        
-      }*/
+      }
    }
-  
-//  Serial.print("freeMemory=");
-//  Serial.println(freeMemory());
   
 #if USE_MPU6050
   if (one.state & STATE_MEMS_READY) {
@@ -383,11 +388,8 @@ void loop()
   }
 #endif
 #if ENABLE_DATA_LOG
+  one.flushFile();
   one.flushData();
 #endif
-
- SerialRF.flush();
- 
-// delay(30);
     
 }

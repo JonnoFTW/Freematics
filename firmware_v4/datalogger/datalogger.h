@@ -13,6 +13,7 @@
 #define PID_GPS_SAT_COUNT 0xF
 #define PID_GPS_TIME 0x10
 #define PID_GPS_DATE 0x11
+#define PID_GPS_DATETIME 0x12
 
 #define PID_ACC 0x20
 #define PID_GYRO 0x21
@@ -34,6 +35,7 @@
 
 #if ENABLE_DATA_LOG
 static File sdfile;
+static SdFat SD;
 #endif
 
 class CDataLogger {
@@ -66,24 +68,18 @@ public:
     void record(const char* buf, byte len)
     {
 #if ENABLE_DATA_LOG
-        char tmp[12];
+        char tmp[36];
         byte n = genTimestamp(tmp, dataSize == 0);
         dataSize += sdfile.write(tmp, n);
         dataSize += sdfile.write(buf, len);
-        sdfile.println();
-        dataSize += 3;
+        dataSize += sdfile.println();
 #endif
         m_lastDataTime = dataTime;
 #if ENABLE_DATA_OUT
         SerialRF.write(tmp, n);
         SerialRF.write(buf, len);
-        SerialRF.write('!');
-
-        
-        SerialRF.println();
-//        SerialRF.print("Written ");
-//        SerialRF.print(dataSize);
-//        SerialRF.println(" bytes");
+        SerialRF.println("!");
+//        SerialRF.println(dataSize);
 #endif
     }
     void dispatch(const char* buf, byte len)
@@ -107,6 +103,23 @@ public:
         SerialRF.write(buf, len);
         SerialRF.println();
 #endif*/
+    }
+    void logDateTime(uint32_t date, uint32_t timev) {
+        char time_str[8+6];
+        sprintf(time_str, "%06lu%08lu", date, timev); // DDMMYYHHMMSSmm
+        String s(time_str);
+        // put them into a whole string
+        char datetime_str [30];
+        byte n = sprintf(datetime_str, "12,%s/%s/20%s %s:%s:%s.%s", s.substring(0,2).c_str(),
+                                                 s.substring(2,4).c_str(), 
+                                                 s.substring(4,6).c_str(), 
+                                                 s.substring(6,8).c_str(),
+                                                 s.substring(8,10).c_str(),
+                                                 s.substring(10,12).c_str(),
+                                                 s.substring(12,14).c_str());
+        record(datetime_str, n);
+        // should show: 09/09/2016 07:09:58.40
+      
     }
     void logData(const char* buf, byte len)
     {
@@ -160,56 +173,52 @@ public:
         dispatch(buf, len);
         record(buf, len);
     }
+//    void showMem() {
+//        SerialRF.print("freeMemory=");
+//        SerialRF.print(freeMemory());
+//        SerialRF.println("b");
+//    }
 #if ENABLE_DATA_LOG
     uint16_t openFile(uint32_t dateTime = 0)
-    {
-        uint16_t fileIndex;
+ {
+        uint16_t fileIndex = 1;
         char path[20] = "/DATA";
-
         dataSize = 0;
-        if (SD.exists(path)) {
-            if (dateTime) {
-               // using date and time as file name 
-               sprintf(path + 5, "/%08lu.CSV", dateTime);
-               fileIndex = 1;
-            } else {
-              // use index number as file name
-              for (fileIndex = 1; fileIndex; fileIndex++) {
-                  sprintf(path + 5, "/DAT%05u.CSV", fileIndex);
-                  if (!SD.exists(path)) {
-                      break;
-                  }
-              }
-              if (fileIndex == 0)
-                  return 0;
-            }
+        bool exists_ = SD.exists("/DATA");
+        if (exists_) {
+            // use index number as file name
+            for (; fileIndex; fileIndex++) {
+                sprintf(path + 5, "/DAT%05u.CSV", fileIndex);
+                if (!SD.exists(path)) {
+                    break;
+                }
+            }           
         } else {
-            SD.mkdir(path);
-            fileIndex = 1;
-            sprintf(path + 5, "/DAT%05u.CSV", 1);
+            bool check = SD.mkdir(path);
+            if(SD.exists(path)) {
+              fileIndex = 1;
+              sprintf(path + 5, "/DAT%05u.CSV", 1);
+            } else {
+              return 0;
+            }
         }
-        
         sdfile = SD.open(path, FILE_WRITE);
         if (!sdfile) {
-//          SerialRF.print("Could not open file!");
-//         SerialRF.write(path, 19);
-//        SerialRF.println();
-        
+            SerialRF.println("could not open file");
             return 0;
         }
-//        SerialRF.print("Opened ");
-//        SerialRF.write(path, 19);
-//        SerialRF.println();
         return fileIndex;
-    }
+ }
     void closeFile()
     {
+        SerialRF.println(F("Closing file!"));
         sdfile.close();
         dataSize = 0;
     }
     void flushFile()
     {
         sdfile.flush();
+        SerialRF.flush();
     }
 #endif
     uint32_t dataTime;
